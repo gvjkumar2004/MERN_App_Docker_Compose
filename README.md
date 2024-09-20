@@ -1,40 +1,114 @@
-# A simple MERN stack application 
+# MERN Docker Compose Application
 
-### Create a network for the docker containers
+This repository contains a MERN stack application containerized with Docker. It includes manual setup for the frontend, backend, and database, and uses Docker Compose for management.
 
-`docker network create demo`
+## Manual Containerization
 
-### Build the client 
+### Step 1: Create a Common Network
 
-```sh
-cd mern/frontend
-docker build -t mern-frontend .
+Create a common network named `mern` that will be used by all services:
+
+```bash
+docker network create mern
 ```
 
-### Run the client
+### Frontend
 
-`docker run --name=frontend --network=demo -d -p 5173:5173 mern-frontend`
+1. **Dockerfile in `frontend`**:
+    ```dockerfile
+    FROM node:18.18.0
+    WORKDIR /app
+    COPY package.json ./
+    RUN npm install
+    COPY . .
+    EXPOSE 5173
+    CMD ["npm", "run", "dev"]
+    ```
 
-### Verify the client is running
+2. **Build and run**:
+    ```bash
+    cd frontend
+    docker build -t mern-frontend .
+    docker run --name frontend --network=mern -d -p 5173:5173 mern-frontend
+    ```
 
-Open your browser and type `http://localhost:5173`
+### Database
 
-### Run the mongodb container
-
-`docker run --network=demo --name mongodb -d -p 27017:27017 -v ~/opt/data:/data/db mongodb:latest`
-
-### Build the server
-
-```sh
-cd mern/backend
-docker build -t mern-backend .
+Run MongoDB:
+```bash
+docker run --name=mongodb --network=mern -d -p 27017:27017 -v ~/opt/data:/data/db mongo:latest
 ```
+    
 
-### Run the server
+### Backend
 
-`docker run --name=backend --network=demo -d -p 5050:5050 mern-backend`
+1. **Dockerfile in `backend`**:
+    ```dockerfile
+    FROM node:18.18.0
+    WORKDIR /app
+    COPY package.json ./
+    RUN npm install
+    COPY . .
+    EXPOSE 5000
+    CMD ["npm", "start"]
+    ```
+
+2. **Build and run**:
+    ```bash
+    cd backend
+    docker build -t mern-backend .
+    docker run --name backend --network=mern -d -p 5000:5000 mern-backend
+    ```
 
 ## Using Docker Compose
 
-`docker compose up -d`
+1. **Create `docker-compose.yml`**:
+    ```yaml
+    version: '3.8'
+    services:
+      mongodb:
+        image: mongo:latest  
+        ports:
+          - "27017:27017"  
+        networks:
+          - mern_network
+        volumes:
+          - mongo-data:/data/db  
 
+      backend:
+        build: ./mern/backend
+        ports:
+          - "5050:5050" 
+        networks:
+          - mern_network
+        environment:
+          MONGO_URI: mongodb://mongo:27017/mydatabase  
+        depends_on:
+          - mongodb
+
+      frontend:
+        build: ./mern/frontend
+        ports:
+          - "5173:5173"  
+        networks:
+          - mern_network
+        environment:
+          REACT_APP_API_URL: http://backend:5050 
+
+    networks:
+      mern_network:
+        driver: bridge 
+
+    volumes:
+      mongo-data:
+        driver: local  # Persist MongoDB data locally
+    ```
+
+2. **Run with Docker Compose**:
+    ```bash
+    docker-compose up
+    ```
+
+This configuration will set up your MongoDB, backend, and frontend services with networking and data persistence.
+
+Hence Dockerized !
